@@ -1,0 +1,9 @@
+# dart artifacts
+.dart_tool/
+.packages
+build/
+# dart doc
+doc/api/
+# pubspec.lock # ok to commit for applicatoins
+
+*~
