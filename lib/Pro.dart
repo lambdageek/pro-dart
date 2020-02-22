@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io' as io;
+import 'dart:convert' as convert;
 import 'dart:collection';
 import 'package:meta/meta.dart';
 
@@ -34,6 +36,27 @@ enum State { Dead, Running, Blocked }
 
 enum Tick { Tock }
 
+class Signal {
+  Completer<void> _completer;
+  bool _alreadySignaled;
+
+  Signal() : _alreadySignaled = false, _completer = Completer<void>();
+
+  void reset () {
+    _alreadySignaled = false;
+    _completer = Completer<void>();
+  }
+
+  void signal () {
+    if (!_alreadySignaled) {
+      _alreadySignaled = true;
+      _completer.complete (null);
+    }
+  }
+
+  Future<void> get future => _completer.future;
+}
+
 /// A scheduler supervises several processes and periodically allows them to run
 ///
 class Scheduler {
@@ -48,7 +71,12 @@ class Scheduler {
 
   List<ScheduledProcess> _processes;
   
-  Scheduler() : ready = Queue<ScheduledProcess>() , _processes = [];
+  int _dead;
+
+  Scheduler() : ready = Queue<ScheduledProcess>() , _processes = [], _dead = 0, blockedStateChange = Signal();
+
+  int get dead => _dead;
+  int get numProcesses => _processes.length;
 
   void spawn (Process process) {
     var sp = ScheduledProcess (process);
@@ -57,22 +85,40 @@ class Scheduler {
     ready.addLast (sp);
   }
 
+  Signal blockedStateChange;
+  
   void dispatch () async {
-    while (ready.isNotEmpty) {
+    while (dead < numProcesses) {
+      while (ready.isEmpty) {
+        
+        print ("ready is empty");
+        await blockedStateChange.future;
+        blockedStateChange.reset();
+        if (dead == numProcesses) {
+          print("all processes dead, returning");
+          return;
+        }
+      }
+
       final p = ready.removeFirst();
       assert (p.process.state == State.Running);
       await p.run();
-      switch (p.process.state) {
+      final s = p.process.state;
+      print ("process, ran, new state is $s");
+      switch (s) {
         case State.Dead:
         p.close();
+        _dead++;
         break;
         case State.Running:
         ready.addLast(p);
         break;
         case State.Blocked:
-        p.doBlocking (onReady: () => ready.addLast (p));
+        p.doBlocking (onReady: () { blockedStateChange.signal(); ready.addLast (p); print ("process is ready"); });
         break;
       }
+      final readyState = ready.isEmpty ? "empty" : "not empty";
+      print ("end of scheduler iteration: dead = $dead, ready = $readyState, numProcesses = $numProcesses");
     }
   }
 }
@@ -112,11 +158,14 @@ class ScheduledProcess {
 
   void doBlocking ({@required void onReady()}) {
     void runBlocking () {
+      print ("in runBlocking");
       subscription
       ..onDone (() {
+          print ("in blocking onDone");
           onReady();
       })
       ..onData ((Tick tick) {
+          print ("in blocking onData");
           subscription.pause ();
           onReady();
       })
@@ -189,9 +238,40 @@ StreamTransformer<A, S> unfoldAutomaton<S, A>(
   return StreamTransformer<A, S>(onListenTransformer);
 }
 
-void runner() {
+@sealed
+class LineEchoProcess implements Process {
+  LineEchoProcess () : _state = State.Running;
+
+  @override
+  State get state => _state;
+
+  @override
+  Stream<Tick> get stream { _stream ??= initStream(); return _stream; }
+
+  Stream<Tick> _stream;
+  State _state;
+
+  Stream<Tick> initStream () async* {
+    final stdinLines = io.stdin.transform (convert.utf8.decoder).transform (const convert.LineSplitter());
+
+    _state = State.Blocked;
+    yield Tick.Tock;
+    await for (var line in stdinLines) {
+      _state = State.Running;
+      yield Tick.Tock;
+      print ("Running: have $line");
+      _state = State.Blocked;
+      yield Tick.Tock;
+    }
+    _state = State.Dead;
+    yield Tick.Tock;
+  }
+
+}
+void runner() async {
   print("hello world!\n");
 
+  /*
   var stream = Stream.periodic(Duration(milliseconds: 250), (_) => Tick.Tock);
 
   int step({int state, Tick symbol}) {
@@ -199,4 +279,13 @@ void runner() {
   }
 
   stream.transform(unfoldAutomaton(step, 0)).take(5).listen(print);
+  */
+
+  var scheduler = new Scheduler ();
+
+  scheduler.spawn (new LineEchoProcess());
+
+  await scheduler.dispatch ();
+
+  
 }
