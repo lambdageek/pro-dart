@@ -91,7 +91,7 @@ class Scheduler {
         ready.addLast(p);
         break;
       case Outcome.Blocking:
-        p.doBlocking(onReady: (Outcome blockingOutcome) {
+        p.doBlocking().then((Outcome blockingOutcome) {
           blockedStateChange.signal();
           _processOutcome(p, blockingOutcome);
         });
@@ -139,11 +139,11 @@ class ScheduledProcess {
     subscription.cancel();
   }
 
-  void doBlocking({@required void onReady(Outcome outcome)}) {
-    // run the process for one step (which is presumably going to block) in
-    // asynchronously in a separate future
-    Future(() {
+  /// Run the process for one step (which is presumably going to block)
+  /// asynchronously in a separate future.
+  Future<Outcome> doBlocking() {
+    return Future(() {
       return run("blocking");
-    }).then(onReady);
+    });
   }
 }
