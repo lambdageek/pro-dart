@@ -18,6 +18,18 @@ abstract class Process {
 
   /// Constructs a Process from a stream of outcomes
   factory Process(Stream<Outcome> stream) => _StreamProcess(stream);
+
+  /// The process sleeps for the given [duration].
+  ///
+  /// ```
+  /// // give other processes a chance to run for a quarter of a second
+  /// yield* Process.sleep (Duration (milliseconds: 250));
+  /// ```
+  static Stream<Outcome> sleep(Duration duration) async* {
+    yield Outcome.Blocking;
+    await Future<void>.delayed(duration);
+    yield Outcome.Yielded;
+  }
 }
 
 @sealed

@@ -8,7 +8,8 @@ Process yieldingCounter({String name, @required int max}) {
     while (count < max) {
       print("Counter ($name): $count");
       ++count;
-      yield Outcome.Yielded;
+      //yield Outcome.Yielded;
+      yield* Process.sleep(Duration(seconds: 1));
     }
     yield Outcome.Finished;
   }
