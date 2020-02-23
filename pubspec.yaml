@@ -1,6 +1,7 @@
 name: pro
 version: 0.0.0
 description:  an experiment in cooperative computing
+repository: https://github.com/lambdageek/pro-dart
 environment:
   sdk: '>=2.0.0 <3.0.0'
 dependencies:

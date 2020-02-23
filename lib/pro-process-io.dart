@@ -1,9 +1,14 @@
+/// Library combinators that work in command-line and server apps
+library pro.process.io;
+
 import 'dart:async';
 import 'dart:convert' as convert;
 import 'dart:io' as io;
 import 'package:pro/pro.dart';
 import 'package:pro/pro-process.dart';
 
+/// A [Process] that reads lines from [io.stdin] and prints them out
+///
 Process lineEchoProcess() {
   Stream<Outcome> loop() async* {
     final stdinLines = io.stdin
@@ -22,6 +27,8 @@ Process lineEchoProcess() {
   return Process(loop());
 }
 
+/// An example that creates a [Scheduler], a [lineEchoProcess] and two
+/// [yieldingCounter] processes.
 void runner() async {
   print("hello world!\n");
 

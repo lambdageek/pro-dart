@@ -1,3 +1,6 @@
+/// Simple processes that work anywhere
+library pro.process;
+
 import 'dart:async';
 import 'package:meta/meta.dart';
 import 'package:pro/pro.dart';
