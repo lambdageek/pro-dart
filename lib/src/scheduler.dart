@@ -41,11 +41,16 @@ class Scheduler {
     ready.addLast(sp);
   }
 
-  final Signal blockedStateChange;
+  final Signal<void> blockedStateChange;
 
+  /// Run the event loop until all the processes are dead.
+  ///
+  /// If the processes deadlock, this [dispatch] will hang.
   void dispatch() async {
     while (dead < numProcesses) {
       while (ready.isEmpty) {
+        // forget any notifications that happned while during the previous loop iteration.
+        blockedStateChange.reset();
         print("ready is empty");
         await blockedStateChange.future;
         if (dead == numProcesses) {

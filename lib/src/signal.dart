@@ -1,28 +1,33 @@
 import 'dart:async';
 
-/// A [Signal] is like a [Completer] except it's ok to call [signal] multiple times before the future is acted on.
+/// A [Signal<T>] is like a `Completer<T>` except it's ok to call [Signal.signal] multiple times before the future is acted on.
 /// The second and subsequent signals are ignored.
-class Signal {
-  Completer<void> _completer;
+class Signal<T> {
+  Completer<T> _completer;
   bool _alreadySignaled;
 
   Signal()
       : _alreadySignaled = false,
-        _completer = Completer<void>();
+        _completer = Completer<T>();
 
+  /// Reinitialize the Signal and prepare a new uncompleted [future]
   void reset() {
     _alreadySignaled = false;
-    _completer = Completer<void>();
+    _completer = Completer<T>();
   }
 
-  void signal() {
+  void signal([T value]) {
     if (!_alreadySignaled) {
       _alreadySignaled = true;
-      _completer.complete(null);
+      _completer.complete(value);
     }
   }
 
-  Future<void> get future => _completer.future.then((_) {
-        reset();
-      });
+  T _resetAndReturn(T value) {
+    reset();
+    return value;
+  }
+
+  /// When at least one [signal()] is received, the future completes with the first value and is [reset()].
+  Future<T> get future => _completer.future.then(_resetAndReturn);
 }
