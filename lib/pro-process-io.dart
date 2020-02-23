@@ -17,7 +17,7 @@ Process lineEchoProcess() {
     yield Outcome.Blocking;
     await for (var line in stdinLines) {
       yield Outcome.Yielded;
-      print("Running: have $line");
+      print('Running: have $line');
       yield Outcome.Blocking;
     }
     yield Outcome.Finished;

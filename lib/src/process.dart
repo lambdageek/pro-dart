@@ -39,5 +39,6 @@ class _StreamProcess implements Process {
 
   final Stream<Outcome> _stream;
 
+  @override
   Stream<Outcome> get stream => _stream;
 }

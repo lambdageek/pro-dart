@@ -4,6 +4,6 @@ class UnreachableError extends Error {}
 
 @alwaysThrows
 T unreachable<T>() {
-  assert(false, "Unreachable code");
-  throw new UnreachableError();
+  assert(false, 'Unreachable code');
+  throw UnreachableError();
 }

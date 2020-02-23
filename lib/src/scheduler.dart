@@ -21,7 +21,7 @@ class Scheduler {
   /// is done, when every process yieldd [Outcome.Finished]
   Iterator<ScheduledProcess> get everyProcess => _processes.iterator;
 
-  List<ScheduledProcess> _processes;
+  final List<ScheduledProcess> _processes;
 
   int _dead;
 
@@ -61,27 +61,27 @@ class Scheduler {
       while (ready.isEmpty) {
         // forget any notifications that happned while during the previous loop iteration.
         blockedStateChange.reset();
-        print("ready is empty");
+        print('ready is empty');
         await blockedStateChange.future;
         if (dead == numProcesses) {
-          print("all processes dead, returning");
+          print('all processes dead, returning');
           return;
         }
       }
 
       final p = ready.removeFirst();
-      print("process ${p.name}, ready to run");
-      final outcome = await p.run("run");
+      print('process ${p.name}, ready to run');
+      final outcome = await p.run('run');
       _processOutcome(p, outcome);
-      final readyState = ready.isEmpty ? "empty" : "not empty";
+      final readyState = ready.isEmpty ? 'empty' : 'not empty';
       print(
-          "end of scheduler iteration: dead = $dead, ready = $readyState, numProcesses = $numProcesses");
+          'end of scheduler iteration: dead = $dead, ready = $readyState, numProcesses = $numProcesses');
       await pause();
     }
   }
 
   void _processOutcome(ScheduledProcess p, Outcome outcome) {
-    print("process ${p.name} ran, outcome was $outcome");
+    print('process ${p.name} ran, outcome was $outcome');
     switch (outcome) {
       case Outcome.Finished:
         p.close();
@@ -119,18 +119,18 @@ class ScheduledProcess {
 
   /// Resume the process until it produces the next outcome, then pause it again
   Future<Outcome> run(String place) {
-    Completer<Outcome> step = Completer<Outcome>();
+    final step = Completer<Outcome>();
     subscription
       ..onDone(() {
-        print("$place: done $name");
+        print('$place: done $name');
         step.complete(Outcome.Finished);
       })
       ..onData(step.complete)
       ..resume();
-    print("$place: resumed $name");
+    print('$place: resumed $name');
     return step.future.then((tick) {
       subscription.pause();
-      print("$place: paused $name");
+      print('$place: paused $name');
       return tick;
     });
   }
@@ -143,7 +143,7 @@ class ScheduledProcess {
   /// asynchronously in a separate future.
   Future<Outcome> doBlocking() {
     return Future(() {
-      return run("blocking");
+      return run('blocking');
     });
   }
 }
