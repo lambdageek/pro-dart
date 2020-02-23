@@ -4,6 +4,8 @@ import 'dart:convert' as convert;
 import 'dart:collection';
 import 'package:meta/meta.dart';
 
+export 'src/signal.dart';
+
 Future<void> pause() {
   return Future.delayed(Duration(seconds: 0), () {});
 }
@@ -39,31 +41,6 @@ class _DeadState extends State {
 enum State { Dead, Running, Blocked }
 
 enum Tick { Tock }
-
-class Signal {
-  Completer<void> _completer;
-  bool _alreadySignaled;
-
-  Signal()
-      : _alreadySignaled = false,
-        _completer = Completer<void>();
-
-  void reset() {
-    _alreadySignaled = false;
-    _completer = Completer<void>();
-  }
-
-  void signal() {
-    if (!_alreadySignaled) {
-      _alreadySignaled = true;
-      _completer.complete(null);
-    }
-  }
-
-  Future<void> get future => _completer.future.then((_) {
-        reset();
-      });
-}
 
 /// A scheduler supervises several processes and periodically allows them to run
 ///
