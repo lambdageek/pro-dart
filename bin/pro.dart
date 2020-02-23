@@ -1,5 +1,5 @@
 import 'package:pro/pro-process-io.dart' as pro;
 
-main() {
+void main() {
   pro.runner();
 }
