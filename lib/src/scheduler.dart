@@ -1,8 +1,7 @@
 import 'dart:async';
 import 'dart:collection';
 import 'package:meta/meta.dart';
-import 'process/state.dart';
-import 'process/tick.dart';
+import 'process/outcome.dart';
 import 'process.dart';
 import 'pause.dart';
 import 'signal.dart';
@@ -11,14 +10,15 @@ import 'signal.dart';
 ///
 class Scheduler {
   /// A queue of processes that are ready to run.  It is assumed that for every
-  /// scheduled process p, p.process.state == [State.Running] and p.subscription
-  /// is paused.  When a process is [State.Dead] it is removed from the queue;
-  /// when a process is blocked, it is removed from the queue and will be put
-  /// back in when it is ready again.
+  /// scheduled process `p`, `p.subscription` is paused.  When a process yields
+  /// [Outcome.Finished] it is removed from the queue; when a process yields
+  /// [Outcome.Blocking], it is removed from the queue and a new microtask is
+  /// scheduled to do the blocking operation, and then to put the process back
+  /// in the ready queue.
   final Queue<ScheduledProcess> ready;
 
-  /// Every process that this scheduler is responsible for.  When the dispatcher
-  /// is done, every process will be in [State.Dead]
+  /// Every process that this scheduler is responsible for.  The dispatcher
+  /// is done, when every process yieldd [Outcome.Finished]
   Iterator<ScheduledProcess> get everyProcess => _processes.iterator;
 
   List<ScheduledProcess> _processes;
@@ -34,13 +34,23 @@ class Scheduler {
   int get dead => _dead;
   int get numProcesses => _processes.length;
 
-  void spawn(String name, Process process) {
+  /// Starts a new process in this scheduler.
+  ///
+  /// The scheduler will continue dispatching until all the spawned processes are dead.
+  void spawn(Process process, [String name]) {
+    name ??= process.toString();
     var sp = ScheduledProcess(name, process);
     _processes.add(sp);
-    assert(process.state == State.Running);
     ready.addLast(sp);
   }
 
+  void spawnStream(Stream<Outcome> stream, [String name]) {
+    spawn(Process(stream), name);
+  }
+
+  /// Used by blocking processes to signal the dispatcher when they put themselves back in the [ready] queue.
+  ///
+  /// The dispatcher awaits this signal when the [ready] queue is empty, but not [everyProcess] is dead.
   final Signal<void> blockedStateChange;
 
   /// Run the event loop until all the processes are dead.
@@ -60,32 +70,32 @@ class Scheduler {
       }
 
       final p = ready.removeFirst();
-      assert(p.process.state == State.Running);
-      final n = p.name;
-      print("process $n, ready to run");
-      await p.run();
-      final s = p.process.state;
-      print("process $n ran, new state is $s");
-      switch (s) {
-        case State.Dead:
-          p.close();
-          _dead++;
-          break;
-        case State.Running:
-          ready.addLast(p);
-          break;
-        case State.Blocked:
-          p.doBlocking(onReady: () {
-            blockedStateChange.signal();
-            ready.addLast(p);
-            print("process $n is ready");
-          });
-          break;
-      }
+      print("process ${p.name}, ready to run");
+      final outcome = await p.run();
+      _processOutcome(p, outcome);
       final readyState = ready.isEmpty ? "empty" : "not empty";
       print(
           "end of scheduler iteration: dead = $dead, ready = $readyState, numProcesses = $numProcesses");
       await pause();
+    }
+  }
+
+  void _processOutcome(ScheduledProcess p, Outcome outcome) {
+    print("process ${p.name} ran, outcome was $outcome");
+    switch (outcome) {
+      case Outcome.Finished:
+        p.close();
+        _dead++;
+        break;
+      case Outcome.Yielded:
+        ready.addLast(p);
+        break;
+      case Outcome.Blocking:
+        p.doBlocking(onReady: (Outcome blockingOutcome) {
+          blockedStateChange.signal();
+          _processOutcome(p, blockingOutcome);
+        });
+        break;
     }
   }
 }
@@ -102,23 +112,19 @@ class Scheduler {
 class ScheduledProcess {
   final String name;
   final Process process;
-  final StreamSubscription<Tick> subscription;
+  final StreamSubscription<Outcome> subscription;
 
   ScheduledProcess(this.name, this.process)
       : subscription = process.stream.listen(null)..pause();
 
-  Future<Tick> run() {
-    Completer<Tick> step = Completer<Tick>();
+  Future<Outcome> run() {
+    Completer<Outcome> step = Completer<Outcome>();
     subscription
       ..onDone(() {
         print("run: done $name");
-        step.complete(Tick.Tock);
+        step.complete(Outcome.Finished);
       })
-      ..onData((Tick tick) {
-        // FIXME: xxx Is it safe to call pause from an onData handler?
-        //subscription.pause ();
-        step.complete(tick);
-      })
+      ..onData(step.complete)
       ..resume();
     print("run: resumed $name");
     return step.future.then((tick) {
@@ -132,22 +138,23 @@ class ScheduledProcess {
     subscription.cancel();
   }
 
-  void doBlocking({@required void onReady()}) {
+  void doBlocking({@required void onReady(Outcome outcome)}) {
     void runBlocking() {
       print("in runBlocking of $name");
       subscription
         ..onDone(() {
           print("in blocking onDone of $name");
-          onReady();
+          onReady(Outcome.Finished);
         })
-        ..onData((Tick tick) {
+        ..onData((Outcome outcome) {
           print("in blocking onData of $name");
+          // FIXME: this really feels like the wrong place to pause the subscription
           subscription.pause();
-          onReady();
+          onReady(outcome);
         })
         ..resume();
     }
 
-    Timer.run(runBlocking);
+    Future(runBlocking);
   }
 }

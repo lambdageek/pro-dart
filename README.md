@@ -5,7 +5,7 @@ An exercise in cooperative asynchronous programming.
 
 ```
 pub get
-dartanalyzer
+dartanalyzer lib
 ```
 
 ### Running:
