@@ -17,7 +17,8 @@ class Scheduler {
   /// back in when it is ready again.
   final Queue<ScheduledProcess> ready;
 
-  /// Every process that this scheduler is responsible for.  When the dispatcher is done, every subscription
+  /// Every process that this scheduler is responsible for.  When the dispatcher
+  /// is done, every process will be in [State.Dead]
   Iterator<ScheduledProcess> get everyProcess => _processes.iterator;
 
   List<ScheduledProcess> _processes;
@@ -40,7 +41,7 @@ class Scheduler {
     ready.addLast(sp);
   }
 
-  Signal blockedStateChange;
+  final Signal blockedStateChange;
 
   void dispatch() async {
     while (dead < numProcesses) {
