@@ -5,7 +5,6 @@ import 'dart:async';
 import 'dart:convert' as convert;
 import 'dart:io' as io;
 import 'package:pro/pro.dart';
-import 'package:pro/pro-process.dart';
 
 /// A [Process] that reads lines from [io.stdin] and prints them out
 ///
@@ -27,16 +26,3 @@ Process lineEchoProcess() {
   return Process(loop());
 }
 
-/// An example that creates a [Scheduler], a [lineEchoProcess] and two
-/// [yieldingCounter] processes.
-void runner() async {
-  print("hello world!\n");
-
-  var scheduler = Scheduler();
-
-  scheduler.spawn(lineEchoProcess(), "echo");
-  scheduler.spawn(yieldingCounter(name: 'a', max: 10), "count a");
-  scheduler.spawn(yieldingCounter(name: 'b', max: 10), "count b");
-
-  await scheduler.dispatch();
-}

@@ -5,19 +5,19 @@ An exercise in cooperative asynchronous programming.
 
 ```
 pub get
-dartanalyzer lib
+dartanalyzer lib example
 ```
 
 ### Running:
 
 ```
-pub run pro
+dart example/example1.dart
 ```
 
 or perhaps save some text lines to 'hello.txt' and then
 
 ```
-pub run pro < hello.txt
+dart example/example1.dart < hello.txt
 ```
 
 ### What's here

@@ -10,6 +10,5 @@ dependencies:
 dev_dependencies:
   pedantic: ^1.8.0
   effective_dart: ^1.2.0
-executables:
-  pro:
+
     
