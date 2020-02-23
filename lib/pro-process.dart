@@ -34,4 +34,3 @@ class YieldingCounter implements Process {
     yield Tick.Tock;
   }
 }
-

@@ -1,4 +1,3 @@
-
 import 'dart:async';
 
 /// A [Signal] is like a [Completer] except it's ok to call [signal] multiple times before the future is acted on.

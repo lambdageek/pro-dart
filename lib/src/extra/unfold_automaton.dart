@@ -57,7 +57,7 @@ StreamTransformer<A, S> unfoldAutomaton<S, A>(
   return StreamTransformer<A, S>(onListenTransformer);
 }
 
-void runner () async* {
+void runner() async* {
   var stream = Stream.periodic(Duration(milliseconds: 250), (_) => Tick.Tock);
 
   int step({int state, Tick symbol}) {
@@ -65,5 +65,4 @@ void runner () async* {
   }
 
   stream.transform(unfoldAutomaton(step, 0)).take(5).listen(print);
-
 }
