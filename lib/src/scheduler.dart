@@ -71,7 +71,7 @@ class Scheduler {
 
       final p = ready.removeFirst();
       print("process ${p.name}, ready to run");
-      final outcome = await p.run();
+      final outcome = await p.run("run");
       _processOutcome(p, outcome);
       final readyState = ready.isEmpty ? "empty" : "not empty";
       print(
@@ -117,19 +117,20 @@ class ScheduledProcess {
   ScheduledProcess(this.name, this.process)
       : subscription = process.stream.listen(null)..pause();
 
-  Future<Outcome> run() {
+  /// Resume the process until it produces the next outcome, then pause it again
+  Future<Outcome> run(String place) {
     Completer<Outcome> step = Completer<Outcome>();
     subscription
       ..onDone(() {
-        print("run: done $name");
+        print("$place: done $name");
         step.complete(Outcome.Finished);
       })
       ..onData(step.complete)
       ..resume();
-    print("run: resumed $name");
+    print("$place: resumed $name");
     return step.future.then((tick) {
       subscription.pause();
-      print("run: paused $name");
+      print("$place: paused $name");
       return tick;
     });
   }
@@ -139,22 +140,10 @@ class ScheduledProcess {
   }
 
   void doBlocking({@required void onReady(Outcome outcome)}) {
-    void runBlocking() {
-      print("in runBlocking of $name");
-      subscription
-        ..onDone(() {
-          print("in blocking onDone of $name");
-          onReady(Outcome.Finished);
-        })
-        ..onData((Outcome outcome) {
-          print("in blocking onData of $name");
-          // FIXME: this really feels like the wrong place to pause the subscription
-          subscription.pause();
-          onReady(outcome);
-        })
-        ..resume();
-    }
-
-    Future(runBlocking);
+    // run the process for one step (which is presumably going to block) in
+    // asynchronously in a separate future
+    Future(() {
+      return run("blocking");
+    }).then(onReady);
   }
 }
