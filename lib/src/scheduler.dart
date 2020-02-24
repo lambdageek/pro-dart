@@ -1,10 +1,22 @@
 import 'dart:async';
-import 'dart:collection';
 import 'package:meta/meta.dart';
 import 'process/outcome.dart';
 import 'process.dart';
-import 'pause.dart';
-import 'signal.dart';
+
+class _ReadyQueue implements EventSink<ScheduledProcess> {
+  Stream<ScheduledProcess> get stream => _controller.stream;
+  @override
+  void add(ScheduledProcess p) => _controller.add(p);
+  @override
+  void addError(Object error, [StackTrace stackTrace]) =>
+      _controller.addError(error, stackTrace);
+  @override
+  void close() => _controller.close();
+
+  final StreamController<ScheduledProcess> _controller;
+
+  _ReadyQueue() : _controller = StreamController<ScheduledProcess>();
+}
 
 /// A scheduler supervises several processes and periodically allows them to run
 ///
@@ -12,10 +24,12 @@ class Scheduler {
   /// A queue of processes that are ready to run.  It is assumed that for every
   /// scheduled process `p`, `p.subscription` is paused.  When a process yields
   /// [Outcome.Finished] it is removed from the queue; when a process yields
-  /// [Outcome.Blocking], it is removed from the queue and a new microtask is
+  /// [Outcome.Blocking], it is removed from the queue and a new Future is
   /// scheduled to do the blocking operation, and then to put the process back
-  /// in the ready queue.
-  final Queue<ScheduledProcess> ready;
+  /// in the ready queue.  Otherwise if the process sends [Outcome.Yielded], it
+  /// is put back into the queue.  When every process is finished, the queue is
+  /// closed and the [dispatch] loop ends.
+  final _ReadyQueue ready;
 
   /// Every process that this scheduler is responsible for.  The dispatcher
   /// is done, when every process yieldd [Outcome.Finished]
@@ -26,10 +40,9 @@ class Scheduler {
   int _dead;
 
   Scheduler()
-      : ready = Queue<ScheduledProcess>(),
+      : ready = _ReadyQueue(),
         _processes = [],
-        _dead = 0,
-        blockedStateChange = Signal();
+        _dead = 0;
 
   int get dead => _dead;
   int get numProcesses => _processes.length;
@@ -41,42 +54,30 @@ class Scheduler {
     name ??= process.toString();
     var sp = ScheduledProcess(name, process);
     _processes.add(sp);
-    ready.addLast(sp);
+    ready.add(sp);
   }
 
-  void spawnStream(Stream<Outcome> stream, [String name]) {
-    spawn(Process(stream), name);
-  }
-
-  /// Used by blocking processes to signal the dispatcher when they put themselves back in the [ready] queue.
-  ///
-  /// The dispatcher awaits this signal when the [ready] queue is empty, but not [everyProcess] is dead.
-  final Signal<void> blockedStateChange;
+  void spawnStream(Stream<Outcome> stream, [String name]) =>
+      spawn(Process(stream), name);
 
   /// Run the event loop until all the processes are dead.
   ///
   /// If the processes deadlock, this [dispatch] will hang.
-  void dispatch() async {
-    while (dead < numProcesses) {
-      while (ready.isEmpty) {
-        // forget any notifications that happned while during the previous loop iteration.
-        blockedStateChange.reset();
-        print('ready is empty');
-        await blockedStateChange.future;
-        if (dead == numProcesses) {
-          print('all processes dead, returning');
-          return;
-        }
-      }
-
-      final p = ready.removeFirst();
+  Future<void> dispatch() async {
+    await for (final p in ready.stream) {
       print('process ${p.name}, ready to run');
       final outcome = await p.run('run');
       _processOutcome(p, outcome);
-      final readyState = ready.isEmpty ? 'empty' : 'not empty';
       print(
-          'end of scheduler iteration: dead = $dead, ready = $readyState, numProcesses = $numProcesses');
-      await pause();
+          'end of scheduler iteration: dead = $dead, numProcesses = $numProcesses');
+    }
+  }
+
+  void _onDead(ScheduledProcess p) {
+    p.close();
+    _dead++;
+    if (dead == numProcesses) {
+      ready.close();
     }
   }
 
@@ -84,15 +85,13 @@ class Scheduler {
     print('process ${p.name} ran, outcome was $outcome');
     switch (outcome) {
       case Outcome.Finished:
-        p.close();
-        _dead++;
+        _onDead(p);
         break;
       case Outcome.Yielded:
-        ready.addLast(p);
+        ready.add(p);
         break;
       case Outcome.Blocking:
         p.doBlocking().then((Outcome blockingOutcome) {
-          blockedStateChange.signal();
           _processOutcome(p, blockingOutcome);
         });
         break;
