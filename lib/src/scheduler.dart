@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' show log;
 import 'package:meta/meta.dart';
 import 'process/outcome.dart';
 import 'process.dart';
@@ -65,11 +66,10 @@ class Scheduler {
   /// If the processes deadlock, this [dispatch] will hang.
   Future<void> dispatch() async {
     await for (final p in ready.stream) {
-      print('process ${p.name}, ready to run');
+      log('process ${p.name}, ready to run');
       final outcome = await p.run('run');
       _processOutcome(p, outcome);
-      print(
-          'end of scheduler iteration: dead = $dead, numProcesses = $numProcesses');
+      log('end of scheduler iteration: dead = $dead, numProcesses = $numProcesses');
     }
   }
 
@@ -82,7 +82,7 @@ class Scheduler {
   }
 
   void _processOutcome(ScheduledProcess p, Outcome outcome) {
-    print('process ${p.name} ran, outcome was $outcome');
+    log('process ${p.name} ran, outcome was $outcome');
     switch (outcome) {
       case Outcome.Finished:
         _onDead(p);
@@ -121,15 +121,15 @@ class ScheduledProcess {
     final step = Completer<Outcome>();
     subscription
       ..onDone(() {
-        print('$place: done $name');
+        log('$place: done $name');
         step.complete(Outcome.Finished);
       })
       ..onData(step.complete)
       ..resume();
-    print('$place: resumed $name');
+    log('$place: resumed $name');
     return step.future.then((tick) {
       subscription.pause();
-      print('$place: paused $name');
+      log('$place: paused $name');
       return tick;
     });
   }
